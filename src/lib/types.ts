@@ -13,6 +13,7 @@ export interface Document {
 	content?: string;
 	original_file_name?: string;
 	mime_type?: string;
+	page_count?: number;
 	owner?: number;
 	owner_name?: string;
 }

@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import Files from 'lucide-svelte/icons/files';
+	import Tag from 'lucide-svelte/icons/tag';
+	import User from 'lucide-svelte/icons/user';
+	import Settings from 'lucide-svelte/icons/settings';
 
 	const links = [
-		{ href: '/', label: 'Dokumente', icon: '📄' },
-		{ href: '/tags', label: 'Tags', icon: '🏷️' },
-		{ href: '/correspondents', label: 'Korrespondenten', icon: '👤' },
-		{ href: '/settings', label: 'Einstellungen', icon: '⚙️' },
+		{ href: '/', label: 'Dokumente', icon: Files },
+		{ href: '/tags', label: 'Tags', icon: Tag },
+		{ href: '/correspondents', label: 'Korrespondenten', icon: User },
+		{ href: '/settings', label: 'Einstellungen', icon: Settings },
 	];
 </script>
 
@@ -24,7 +28,7 @@
 						? 'bg-gray-200 font-medium text-gray-900'
 						: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
 				>
-					<span>{link.icon}</span>
+					<link.icon size={16} />
 					{link.label}
 				</a>
 			</li>
