@@ -15,7 +15,7 @@
 
 <nav class="flex h-screen w-56 flex-col border-r border-gray-200 bg-gray-50 px-3 py-6">
 	<div class="mb-8 px-2">
-		<span class="text-lg font-semibold text-gray-900">paperless</span>
+		<span class="text-lg font-semibold text-gray-900">paperless ui</span>
 	</div>
 
 	<ul class="flex flex-col gap-1">
