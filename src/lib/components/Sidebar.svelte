@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { page } from '$app/state';
+	import { tabStore } from '$lib/stores/tabs.svelte';
 	import Files from 'lucide-svelte/icons/files';
 	import Tag from 'lucide-svelte/icons/tag';
 	import User from 'lucide-svelte/icons/user';
 	import Settings from 'lucide-svelte/icons/settings';
 
 	const links = [
-		{ href: '/', label: 'Dokumente', icon: Files },
-		{ href: '/tags', label: 'Tags', icon: Tag },
-		{ href: '/correspondents', label: 'Korrespondenten', icon: User },
-		{ href: '/settings', label: 'Einstellungen', icon: Settings },
+		{ label: 'Dokumente', icon: Files, action: () => tabStore.openDocuments() },
+		{ label: 'Tags', icon: Tag, action: () => {} },
+		{ label: 'Korrespondenten', icon: User, action: () => {} },
+		{ label: 'Einstellungen', icon: Settings, action: () => {} },
 	];
 </script>
 
@@ -21,16 +21,13 @@
 	<ul class="flex flex-col gap-1">
 		{#each links as link}
 			<li>
-				<a
-					href={link.href}
-					class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors
-						{page.url.pathname === link.href
-						? 'bg-gray-200 font-medium text-gray-900'
-						: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+				<button
+					onclick={link.action}
+					class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
 				>
 					<link.icon size={16} />
 					{link.label}
-				</a>
+				</button>
 			</li>
 		{/each}
 	</ul>
