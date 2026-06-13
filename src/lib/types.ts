@@ -3,6 +3,7 @@ export interface Document {
 	title: string;
 	created: string;
 	added: string;
+	modified?: string;
 	correspondent: number | null;
 	correspondent_name?: string;
 	document_type: number | null;
@@ -16,6 +17,10 @@ export interface Document {
 	page_count?: number;
 	owner?: number;
 	owner_name?: string;
+	permissions?: {
+		view: { users: number[]; groups: number[] };
+		change: { users: number[]; groups: number[] };
+	};
 }
 
 export interface Tag {
@@ -40,4 +45,9 @@ export interface User {
 	username: string;
 	first_name: string;
 	last_name: string;
+}
+
+export interface Group {
+	id: number;
+	name: string;
 }
