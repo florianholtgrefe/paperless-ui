@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Document, User, Group } from '$lib/types';
-	import { downloadUrl, fetchBlob, getDocument, getDocumentMetadata, getDocumentHistory, getUsers, getGroups } from '$lib/api/index';
+	import type { Document, User, Group, Tag, Correspondent, DocumentType } from '$lib/types';
+	import { downloadUrl, fetchBlob, getDocument, getDocumentMetadata, getDocumentHistory, getUsers, getGroups, patchDocument, getTags, getCorrespondents, getDocumentTypes } from '$lib/api/index';
 	import type { DocumentMetadata, HistoryEntry } from '$lib/api/documents';
 	import ShareModal from '$lib/components/ShareModal.svelte';
 	import User_ from 'lucide-svelte/icons/user';
@@ -9,6 +9,7 @@
 	import UserLock from 'lucide-svelte/icons/user-lock';
 	import Calendar1 from 'lucide-svelte/icons/calendar-1';
 	import Files from 'lucide-svelte/icons/files';
+	import Pencil from 'lucide-svelte/icons/pencil';
 
 	let { doc }: { doc: Document } = $props();
 
@@ -20,13 +21,81 @@
 	let pdfSrc = $state('');
 	let pdfLoading = $state(true);
 
-	// Für Berechtigungen
+	// Berechtigungen / Metadaten
 	let userMap = $state(new Map<number, string>());
 	let groupMap = $state(new Map<number, string>());
 	let fullDoc = $state<Document | null>(null);
 	let docMetadata = $state<DocumentMetadata | null>(null);
 	let history = $state<HistoryEntry[] | null>(null);
 	let historyError = $state<string | null>(null);
+
+	// Edit-Modus
+	let editing = $state(false);
+	let saving = $state(false);
+	let allTags = $state<Tag[]>([]);
+	let allCorrespondents = $state<Correspondent[]>([]);
+	let allDocumentTypes = $state<DocumentType[]>([]);
+
+	// Editierbare Felder (lokale Kopie)
+	let editTitle = $state('');
+	let editCorrespondent = $state<number | ''>('');
+	let editDocumentType = $state<number | ''>('');
+	let editCreated = $state('');
+	let editTags = $state<number[]>([]);
+	let editOwner = $state<number | ''>('');
+	let editUsers = $state<User[]>([]);
+
+	function startEdit() {
+		editTitle = doc.title;
+		editCorrespondent = doc.correspondent ?? '';
+		editDocumentType = doc.document_type ?? '';
+		editCreated = doc.created ? doc.created.slice(0, 10) : '';
+		editTags = [...(doc.tags ?? [])];
+		editOwner = doc.owner ?? '';
+		editing = true;
+	}
+
+	function cancelEdit() {
+		editing = false;
+	}
+
+	async function saveEdit() {
+		saving = true;
+		try {
+			const updated = await patchDocument(doc.id, {
+				title: editTitle,
+				correspondent: editCorrespondent === '' ? null : Number(editCorrespondent),
+				document_type: editDocumentType === '' ? null : Number(editDocumentType),
+				created: editCreated || undefined,
+				tags: editTags,
+				owner: editOwner === '' ? null : Number(editOwner),
+			});
+			// Felder im doc-Objekt aktualisieren
+			doc.title = updated.title;
+			doc.correspondent = updated.correspondent;
+			doc.document_type = updated.document_type;
+			doc.created = updated.created;
+			doc.tags = updated.tags;
+			doc.owner = updated.owner;
+			// Namen neu auflösen
+			doc.correspondent_name = allCorrespondents.find(c => c.id === updated.correspondent)?.name ?? undefined;
+			doc.document_type_name = allDocumentTypes.find(t => t.id === updated.document_type)?.name ?? undefined;
+			doc.tag_objects = allTags.filter(t => updated.tags.includes(t.id));
+			const ownerUser = editUsers.find(u => u.id === updated.owner);
+			doc.owner_name = ownerUser ? displayName(ownerUser) : undefined;
+			editing = false;
+		} finally {
+			saving = false;
+		}
+	}
+
+	function toggleTag(id: number) {
+		if (editTags.includes(id)) {
+			editTags = editTags.filter(t => t !== id);
+		} else {
+			editTags = [...editTags, id];
+		}
+	}
 
 	function displayName(u: User): string {
 		const full = [u.first_name, u.last_name].filter(Boolean).join(' ');
@@ -73,14 +142,21 @@
 
 		Promise.all([
 			getDocument(doc.id),
-			getUsers().catch(() => ({ results: [] })),
-			getGroups().catch(() => ({ results: [] })),
+			getUsers().catch(() => ({ results: [] as User[] })),
+			getGroups().catch(() => ({ results: [] as Group[] })),
 			getDocumentMetadata(doc.id).catch(() => null),
-		]).then(([d, usersRes, groupsRes, meta]) => {
+			getTags().catch(() => ({ results: [] as Tag[] })),
+			getCorrespondents().catch(() => ({ results: [] as Correspondent[] })),
+			getDocumentTypes().catch(() => ({ results: [] as DocumentType[] })),
+		]).then(([d, usersRes, groupsRes, meta, tagsRes, corrRes, typesRes]) => {
 			fullDoc = d;
+			editUsers = usersRes.results;
 			userMap = new Map(usersRes.results.map((u: User) => [u.id, displayName(u)]));
 			groupMap = new Map(groupsRes.results.map((g: Group) => [g.id, g.name]));
 			docMetadata = meta;
+			allTags = tagsRes.results;
+			allCorrespondents = corrRes.results;
+			allDocumentTypes = typesRes.results;
 		});
 
 		getDocumentHistory(doc.id)
@@ -125,8 +201,13 @@
 	<!-- Sidebar: 1/3 -->
 	<div class="flex basis-1/3 flex-col border-l border-gray-200 bg-white overflow-hidden">
 		<!-- Titel -->
-		<div class="border-b border-gray-100 px-5 py-4">
+		<div class="border-b border-gray-100 px-5 py-4 flex items-start justify-between gap-2">
 			<h2 class="text-sm font-semibold text-gray-900 leading-snug">{doc.title}</h2>
+			{#if !editing}
+				<button onclick={startEdit} class="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors" title="Bearbeiten">
+					<Pencil size={14} />
+				</button>
+			{/if}
 		</div>
 
 		<!-- Reiter -->
@@ -149,42 +230,111 @@
 
 			{#if activeTab === 'details'}
 				<!-- Tags -->
-				{#if doc.tag_objects && doc.tag_objects.length > 0}
-					<p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Tags</p>
-					<div class="mb-4 flex flex-wrap gap-1">
-						{#each doc.tag_objects as tag}
-							<span class="rounded-full px-2 py-0.5 text-xs font-medium"
-								style="background-color: {tag.color}; color: {tag.text_color}">{tag.name}</span>
-						{/each}
+				{#if editing}
+					<!-- Edit-Formular -->
+					<div class="flex flex-col gap-4">
+						<div class="flex flex-col gap-1">
+							<label for="edit-title" class="text-xs font-medium text-gray-500">Titel</label>
+							<input
+								id="edit-title"
+								bind:value={editTitle}
+								class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400"
+							/>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label for="edit-correspondent" class="text-xs font-medium text-gray-500">Korrespondent</label>
+							<select id="edit-correspondent" bind:value={editCorrespondent} class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400">
+								<option value="">— Kein Korrespondent —</option>
+								{#each allCorrespondents as c}
+									<option value={c.id}>{c.name}</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label for="edit-doctype" class="text-xs font-medium text-gray-500">Dokumenttyp</label>
+							<select id="edit-doctype" bind:value={editDocumentType} class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400">
+								<option value="">— Kein Typ —</option>
+								{#each allDocumentTypes as t}
+									<option value={t.id}>{t.name}</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label for="edit-created" class="text-xs font-medium text-gray-500">Ausstellungsdatum</label>
+							<input
+								id="edit-created"
+								type="date"
+								bind:value={editCreated}
+								class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400"
+							/>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label for="edit-owner" class="text-xs font-medium text-gray-500">Eigentümer</label>
+							<select id="edit-owner" bind:value={editOwner} class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400">
+								<option value="">— Kein Eigentümer —</option>
+								{#each editUsers as u}
+									<option value={u.id}>{displayName(u)}</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="flex flex-col gap-2">
+							<span class="text-xs font-medium text-gray-500">Tags</span>
+							<div class="flex flex-wrap gap-1">
+								{#each allTags as tag}
+									{@const selected = editTags.includes(tag.id)}
+									<button
+										onclick={() => toggleTag(tag.id)}
+										class="rounded-full px-2 py-0.5 text-xs font-medium transition-opacity {selected ? 'opacity-100 ring-2 ring-offset-1 ring-gray-400' : 'opacity-40'}"
+										style="background-color: {tag.color}; color: {tag.text_color}"
+									>{tag.name}</button>
+								{/each}
+							</div>
+						</div>
 					</div>
-				{/if}
+				{:else}
+					<!-- Leseansicht -->
+					{#if doc.tag_objects && doc.tag_objects.length > 0}
+						<p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Tags</p>
+						<div class="mb-4 flex flex-wrap gap-1">
+							{#each doc.tag_objects as tag}
+								<span class="rounded-full px-2 py-0.5 text-xs font-medium"
+									style="background-color: {tag.color}; color: {tag.text_color}">{tag.name}</span>
+							{/each}
+						</div>
+					{/if}
 
-				<p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Details</p>
-				<dl class="grid grid-cols-[16px_1fr] gap-x-3 gap-y-2 text-xs">
-					<dt class="flex items-center text-gray-400"><User_ size={14} /></dt>
-					<dd class="text-gray-700 self-center">{doc.correspondent_name ?? '—'}</dd>
+					<p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Details</p>
+					<dl class="grid grid-cols-[16px_1fr] gap-x-3 gap-y-2 text-xs">
+						<dt class="flex items-center text-gray-400"><User_ size={14} /></dt>
+						<dd class="text-gray-700 self-center">{doc.correspondent_name ?? '—'}</dd>
 
-					<dt class="flex items-center text-gray-400"><File size={14} /></dt>
-					<dd class="text-gray-700 self-center">{doc.document_type_name ?? '—'}</dd>
+						<dt class="flex items-center text-gray-400"><File size={14} /></dt>
+						<dd class="text-gray-700 self-center">{doc.document_type_name ?? '—'}</dd>
 
-					<dt class="flex items-center text-gray-400"><Calendar1 size={14} /></dt>
-					<dd class="text-gray-700 self-center">{formatDate(doc.created)}</dd>
+						<dt class="flex items-center text-gray-400"><Calendar1 size={14} /></dt>
+						<dd class="text-gray-700 self-center">{formatDate(doc.created)}</dd>
 
-					<dt class="flex items-center text-gray-400"><UserLock size={14} /></dt>
-					<dd class="text-gray-700 self-center">{doc.owner_name ?? '—'}</dd>
+						<dt class="flex items-center text-gray-400"><UserLock size={14} /></dt>
+						<dd class="text-gray-700 self-center">{doc.owner_name ?? '—'}</dd>
 
-					<dt class="flex items-center text-gray-400"><Files size={14} /></dt>
-					<dd class="text-gray-700 self-center">Seiten: {doc.page_count ?? '—'}</dd>
-				</dl>
+						<dt class="flex items-center text-gray-400"><Files size={14} /></dt>
+						<dd class="text-gray-700 self-center">Seiten: {doc.page_count ?? '—'}</dd>
+					</dl>
 
-				{#if doc.original_file_name}
-					<p class="mt-4 mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">Datei</p>
-					<p class="text-xs text-gray-600 break-all">{doc.original_file_name}</p>
-				{/if}
+					{#if doc.original_file_name}
+						<p class="mt-4 mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">Datei</p>
+						<p class="text-xs text-gray-600 break-all">{doc.original_file_name}</p>
+					{/if}
 
-				{#if doc.content}
-					<p class="mt-4 mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Inhalt</p>
-					<p class="whitespace-pre-wrap text-xs text-gray-700 leading-relaxed">{doc.content}</p>
+					{#if doc.content}
+						<p class="mt-4 mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Inhalt</p>
+						<p class="whitespace-pre-wrap text-xs text-gray-700 leading-relaxed">{doc.content}</p>
+					{/if}
 				{/if}
 
 			{:else if activeTab === 'metadaten'}
@@ -338,21 +488,38 @@
 			{/if}
 		</div>
 
-		<!-- Download + Share -->
+		<!-- Buttons -->
 		<div class="border-t border-gray-100 px-5 py-3 flex flex-col gap-2">
-			<button
-				onclick={download}
-				disabled={downloading}
-				class="w-full rounded-lg bg-gray-900 py-2 text-xs font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
-			>
-				{downloading ? 'Wird heruntergeladen…' : 'Download'}
-			</button>
-			<button
-				onclick={() => shareOpen = true}
-				class="w-full rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-			>
-				Teilen
-			</button>
+			{#if editing}
+				<button
+					onclick={saveEdit}
+					disabled={saving}
+					class="w-full rounded-lg bg-gray-900 py-2 text-xs font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+				>
+					{saving ? 'Wird gespeichert…' : 'Speichern'}
+				</button>
+				<button
+					onclick={cancelEdit}
+					disabled={saving}
+					class="w-full rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+				>
+					Abbrechen
+				</button>
+			{:else}
+				<button
+					onclick={download}
+					disabled={downloading}
+					class="w-full rounded-lg bg-gray-900 py-2 text-xs font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+				>
+					{downloading ? 'Wird heruntergeladen…' : 'Download'}
+				</button>
+				<button
+					onclick={() => shareOpen = true}
+					class="w-full rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+				>
+					Teilen
+				</button>
+			{/if}
 		</div>
 	</div>
 </div>
