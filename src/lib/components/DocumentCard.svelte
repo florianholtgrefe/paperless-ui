@@ -26,7 +26,7 @@
 
 <div class="flex flex-col rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
 	<!-- Preview -->
-	<div class="relative h-44 bg-gray-50 flex items-center justify-center overflow-hidden">
+	<div class="relative h-64 bg-gray-50 flex items-center justify-center overflow-hidden">
 		{#if thumbSrc}
 			<img src={thumbSrc} alt="Vorschau {doc.title}" class="h-full w-full object-cover object-top" />
 		{:else}
