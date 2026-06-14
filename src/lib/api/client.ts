@@ -1,8 +1,10 @@
 export const BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_PAPERLESS_URL ?? '');
-const TOKEN = import.meta.env.VITE_PAPERLESS_TOKEN ?? '';
 
 export function authHeader(): HeadersInit {
-	return TOKEN ? { Authorization: `Token ${TOKEN}` } : {};
+	const token = typeof localStorage !== 'undefined'
+		? localStorage.getItem('paperless_token')
+		: null;
+	return token ? { Authorization: `Token ${token}` } : {};
 }
 
 export async function get<T>(path: string): Promise<T> {
