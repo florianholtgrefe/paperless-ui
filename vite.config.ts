@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
 				compilerOptions: {
 					runes: ({ filename }) => filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 				},
-				adapter: adapter()
+				adapter: adapter({ fallback: 'index.html' })
 			})
 		]
 	};
