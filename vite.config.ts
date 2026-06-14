@@ -12,6 +12,10 @@ export default defineConfig(({ mode }) => {
 					target: env.VITE_PAPERLESS_URL,
 					changeOrigin: true,
 				},
+				'/share': {
+					target: env.VITE_PAPERLESS_URL,
+					changeOrigin: true,
+				},
 			},
 		},
 		plugins: [

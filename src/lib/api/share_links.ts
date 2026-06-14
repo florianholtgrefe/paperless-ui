@@ -35,8 +35,9 @@ export async function deleteShareLink(id: number): Promise<void> {
 	if (!res.ok) throw new Error(`API error ${res.status}`);
 }
 
-const PAPERLESS_URL = import.meta.env.VITE_PAPERLESS_URL ?? '';
-
+// Share links route through our own app (/share/{slug}) so the browser
+// never needs direct access to the paperless-ngx instance.
+// Dev: Vite proxies /share → paperless. Prod: nginx does the same.
 export function shareUrl(slug: string): string {
-	return `${PAPERLESS_URL}/share/${slug}`;
+	return `${window.location.origin}/share/${slug}`;
 }
