@@ -1,6 +1,6 @@
-import { get, type PagedResponse } from './client';
+import { fetchAll } from './client';
 import type { DocumentType } from '$lib/types';
 
-export async function getDocumentTypes(): Promise<PagedResponse<DocumentType>> {
-	return get('/api/document_types/?page_size=200');
+export async function getDocumentTypes(): Promise<DocumentType[]> {
+	return fetchAll<DocumentType>('/api/document_types/');
 }

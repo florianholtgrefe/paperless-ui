@@ -58,6 +58,35 @@ export async function getDocumentHistory(id: number): Promise<HistoryEntry[]> {
 	return get(`/api/documents/${id}/history/`);
 }
 
+export interface DocumentPatch {
+	title?: string;
+	correspondent?: number | null;
+	document_type?: number | null;
+	created?: string;
+	tags?: number[];
+	owner?: number | null;
+}
+
+export async function deleteDocument(id: number): Promise<void> {
+	const { BASE, authHeader } = await import('./client');
+	const res = await fetch(`${BASE}/api/documents/${id}/`, {
+		method: 'DELETE',
+		headers: authHeader(),
+	});
+	if (!res.ok) throw new Error(`API error ${res.status}`);
+}
+
+export async function patchDocument(id: number, data: DocumentPatch): Promise<Document> {
+	const { BASE, authHeader } = await import('./client');
+	const res = await fetch(`${BASE}/api/documents/${id}/`, {
+		method: 'PATCH',
+		headers: { ...authHeader(), 'Content-Type': 'application/json' },
+		body: JSON.stringify(data),
+	});
+	if (!res.ok) throw new Error(`API error ${res.status}`);
+	return res.json();
+}
+
 export function thumbnailUrl(id: number): string {
 	return `${BASE}/api/documents/${id}/thumb/`;
 }

@@ -50,18 +50,18 @@
 	onMount(() => {
 		async function init() {
 			try {
-				const [docsRes, tagsRes, corrsRes, docTypesRes, usersRes] = await Promise.all([
+				const [docsRes, tags, corrs, docTypes, users] = await Promise.all([
 					getDocuments(),
 					getTags(),
 					getCorrespondents(),
 					getDocumentTypes(),
-					getUsers().catch(() => ({ results: [] })),
+					getUsers().catch(() => [] as User[]),
 				]);
 
-				tagMap = new Map(tagsRes.results.map((t: Tag) => [t.id, t]));
-				corrMap = new Map(corrsRes.results.map((c: Correspondent) => [c.id, c.name]));
-				docTypeMap = new Map(docTypesRes.results.map((d: DocumentType) => [d.id, d.name]));
-				userMap = new Map(usersRes.results.map((u: User) => [u.id, displayName(u)]));
+				tagMap = new Map(tags.map((t: Tag) => [t.id, t]));
+				corrMap = new Map(corrs.map((c: Correspondent) => [c.id, c.name]));
+				docTypeMap = new Map(docTypes.map((d: DocumentType) => [d.id, d.name]));
+				userMap = new Map(users.map((u: User) => [u.id, displayName(u)]));
 
 				documents = enrich(docsRes.results);
 				nextUrl = docsRes.next;
