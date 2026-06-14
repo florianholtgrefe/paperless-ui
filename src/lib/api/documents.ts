@@ -67,6 +67,15 @@ export interface DocumentPatch {
 	owner?: number | null;
 }
 
+export async function deleteDocument(id: number): Promise<void> {
+	const { BASE, authHeader } = await import('./client');
+	const res = await fetch(`${BASE}/api/documents/${id}/`, {
+		method: 'DELETE',
+		headers: authHeader(),
+	});
+	if (!res.ok) throw new Error(`API error ${res.status}`);
+}
+
 export async function patchDocument(id: number, data: DocumentPatch): Promise<Document> {
 	const { BASE, authHeader } = await import('./client');
 	const res = await fetch(`${BASE}/api/documents/${id}/`, {

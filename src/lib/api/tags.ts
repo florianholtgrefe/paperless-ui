@@ -1,6 +1,6 @@
-import { get, type PagedResponse } from './client';
+import { fetchAll } from './client';
 import type { Tag } from '$lib/types';
 
-export async function getTags(): Promise<PagedResponse<Tag>> {
-	return get('/api/tags/?page_size=200');
+export async function getTags(): Promise<Tag[]> {
+	return fetchAll<Tag>('/api/tags/');
 }

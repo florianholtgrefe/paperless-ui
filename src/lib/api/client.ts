@@ -26,3 +26,14 @@ export interface PagedResponse<T> {
 	next: string | null;
 	results: T[];
 }
+
+export async function fetchAll<T>(path: string): Promise<T[]> {
+	let url: string | null = `${path}${path.includes('?') ? '&' : '?'}page_size=500`;
+	const results: T[] = [];
+	while (url) {
+		const page: PagedResponse<T> = await get<PagedResponse<T>>(url);
+		results.push(...page.results);
+		url = page.next ? new URL(page.next).pathname + new URL(page.next).search : null;
+	}
+	return results;
+}

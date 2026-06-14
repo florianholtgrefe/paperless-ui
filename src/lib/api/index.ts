@@ -1,4 +1,4 @@
-export { getDocuments, getDocument, getDocumentMetadata, getDocumentHistory, patchDocument, thumbnailUrl, downloadUrl, fetchBlob } from './documents';
+export { getDocuments, getDocument, getDocumentMetadata, getDocumentHistory, patchDocument, deleteDocument, thumbnailUrl, downloadUrl, fetchBlob } from './documents';
 export type { DocumentPatch } from './documents';
 export { getTags } from './tags';
 export { getCorrespondents } from './correspondents';

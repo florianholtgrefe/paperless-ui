@@ -1,15 +1,22 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Document, User, Group, Tag, Correspondent, DocumentType } from '$lib/types';
-	import { downloadUrl, fetchBlob, getDocument, getDocumentMetadata, getDocumentHistory, getUsers, getGroups, patchDocument, getTags, getCorrespondents, getDocumentTypes } from '$lib/api/index';
+	import { downloadUrl, fetchBlob, getDocument, getDocumentMetadata, getDocumentHistory, getUsers, getGroups, patchDocument, deleteDocument, getTags, getCorrespondents, getDocumentTypes } from '$lib/api/index';
+	import { tabStore } from '$lib/stores/tabs.svelte';
 	import type { DocumentMetadata, HistoryEntry } from '$lib/api/documents';
 	import ShareModal from '$lib/components/ShareModal.svelte';
+	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 	import User_ from 'lucide-svelte/icons/user';
 	import File from 'lucide-svelte/icons/file';
 	import UserLock from 'lucide-svelte/icons/user-lock';
 	import Calendar1 from 'lucide-svelte/icons/calendar-1';
 	import Files from 'lucide-svelte/icons/files';
 	import Pencil from 'lucide-svelte/icons/pencil';
+	import Trash2 from 'lucide-svelte/icons/trash-2';
+	import ChevronDown from 'lucide-svelte/icons/chevron-down';
+	import UsersRound from 'lucide-svelte/icons/users-round';
+	import SearchSelect from '$lib/components/SearchSelect.svelte';
+	import TagSelect from '$lib/components/TagSelect.svelte';
 
 	let { doc }: { doc: Document } = $props();
 
@@ -57,6 +64,21 @@
 
 	function cancelEdit() {
 		editing = false;
+	}
+
+	let deleting = $state(false);
+	let confirmDelete = $state(false);
+	let contentExpanded = $state(false);
+
+	async function deleteDoc() {
+		deleting = true;
+		try {
+			await deleteDocument(doc.id);
+			tabStore.close(`doc-${doc.id}`);
+		} finally {
+			deleting = false;
+			confirmDelete = false;
+		}
 	}
 
 	async function saveEdit() {
@@ -142,21 +164,21 @@
 
 		Promise.all([
 			getDocument(doc.id),
-			getUsers().catch(() => ({ results: [] as User[] })),
-			getGroups().catch(() => ({ results: [] as Group[] })),
+			getUsers().catch(() => [] as User[]),
+			getGroups().catch(() => [] as Group[]),
 			getDocumentMetadata(doc.id).catch(() => null),
-			getTags().catch(() => ({ results: [] as Tag[] })),
-			getCorrespondents().catch(() => ({ results: [] as Correspondent[] })),
-			getDocumentTypes().catch(() => ({ results: [] as DocumentType[] })),
-		]).then(([d, usersRes, groupsRes, meta, tagsRes, corrRes, typesRes]) => {
+			getTags().catch(() => [] as Tag[]),
+			getCorrespondents().catch(() => [] as Correspondent[]),
+			getDocumentTypes().catch(() => [] as DocumentType[]),
+		]).then(([d, users, groups, meta, tags, corrs, types]) => {
 			fullDoc = d;
-			editUsers = usersRes.results;
-			userMap = new Map(usersRes.results.map((u: User) => [u.id, displayName(u)]));
-			groupMap = new Map(groupsRes.results.map((g: Group) => [g.id, g.name]));
+			editUsers = users;
+			userMap = new Map(users.map((u: User) => [u.id, displayName(u)]));
+			groupMap = new Map(groups.map((g: Group) => [g.id, g.name]));
 			docMetadata = meta;
-			allTags = tagsRes.results;
-			allCorrespondents = corrRes.results;
-			allDocumentTypes = typesRes.results;
+			allTags = tags;
+			allCorrespondents = corrs;
+			allDocumentTypes = types;
 		});
 
 		getDocumentHistory(doc.id)
@@ -204,9 +226,14 @@
 		<div class="border-b border-gray-100 px-5 py-4 flex items-start justify-between gap-2">
 			<h2 class="text-sm font-semibold text-gray-900 leading-snug">{doc.title}</h2>
 			{#if !editing}
-				<button onclick={startEdit} class="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors" title="Bearbeiten">
-					<Pencil size={14} />
-				</button>
+				<div class="flex items-center gap-0.5">
+					<button onclick={startEdit} class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors" title="Bearbeiten">
+						<Pencil size={14} />
+					</button>
+					<button onclick={() => confirmDelete = true} disabled={deleting} class="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50" title="Löschen">
+						<Trash2 size={14} />
+					</button>
+				</div>
 			{/if}
 		</div>
 
@@ -244,22 +271,22 @@
 
 						<div class="flex flex-col gap-1">
 							<label for="edit-correspondent" class="text-xs font-medium text-gray-500">Korrespondent</label>
-							<select id="edit-correspondent" bind:value={editCorrespondent} class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400">
-								<option value="">— Kein Korrespondent —</option>
-								{#each allCorrespondents as c}
-									<option value={c.id}>{c.name}</option>
-								{/each}
-							</select>
+							<SearchSelect
+								id="edit-correspondent"
+								bind:value={editCorrespondent}
+								options={allCorrespondents}
+								placeholder="— Kein Korrespondent —"
+							/>
 						</div>
 
 						<div class="flex flex-col gap-1">
 							<label for="edit-doctype" class="text-xs font-medium text-gray-500">Dokumenttyp</label>
-							<select id="edit-doctype" bind:value={editDocumentType} class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400">
-								<option value="">— Kein Typ —</option>
-								{#each allDocumentTypes as t}
-									<option value={t.id}>{t.name}</option>
-								{/each}
-							</select>
+							<SearchSelect
+								id="edit-doctype"
+								bind:value={editDocumentType}
+								options={allDocumentTypes}
+								placeholder="— Kein Typ —"
+							/>
 						</div>
 
 						<div class="flex flex-col gap-1">
@@ -274,26 +301,17 @@
 
 						<div class="flex flex-col gap-1">
 							<label for="edit-owner" class="text-xs font-medium text-gray-500">Eigentümer</label>
-							<select id="edit-owner" bind:value={editOwner} class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400">
-								<option value="">— Kein Eigentümer —</option>
-								{#each editUsers as u}
-									<option value={u.id}>{displayName(u)}</option>
-								{/each}
-							</select>
+							<SearchSelect
+								id="edit-owner"
+								bind:value={editOwner}
+								options={editUsers.map(u => ({ id: u.id, name: displayName(u) }))}
+								placeholder="— Kein Eigentümer —"
+							/>
 						</div>
 
-						<div class="flex flex-col gap-2">
+						<div class="flex flex-col gap-1">
 							<span class="text-xs font-medium text-gray-500">Tags</span>
-							<div class="flex flex-wrap gap-1">
-								{#each allTags as tag}
-									{@const selected = editTags.includes(tag.id)}
-									<button
-										onclick={() => toggleTag(tag.id)}
-										class="rounded-full px-2 py-0.5 text-xs font-medium transition-opacity {selected ? 'opacity-100 ring-2 ring-offset-1 ring-gray-400' : 'opacity-40'}"
-										style="background-color: {tag.color}; color: {tag.text_color}"
-									>{tag.name}</button>
-								{/each}
-							</div>
+							<TagSelect bind:value={editTags} options={allTags} />
 						</div>
 					</div>
 				{:else}
@@ -332,8 +350,20 @@
 					{/if}
 
 					{#if doc.content}
-						<p class="mt-4 mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Inhalt</p>
-						<p class="whitespace-pre-wrap text-xs text-gray-700 leading-relaxed">{doc.content}</p>
+						<div class="mt-4 border-t border-gray-100 pt-3">
+							<button
+								onclick={() => contentExpanded = !contentExpanded}
+								class="flex w-full items-center justify-between text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+							>
+								<span class="uppercase tracking-wide">Inhalt</span>
+								<ChevronDown size={14} class="transition-transform {contentExpanded ? 'rotate-180' : ''}" />
+							</button>
+							{#if contentExpanded}
+								<div class="mt-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-3">
+									<p class="whitespace-pre-wrap text-xs text-gray-600 leading-relaxed">{doc.content}</p>
+								</div>
+							{/if}
+						</div>
 					{/if}
 				{/if}
 
@@ -448,7 +478,7 @@
 									{/each}
 									{#each perms.view.groups as gid}
 										<li class="flex items-center gap-2 text-xs text-gray-700">
-											<span class="text-gray-400 text-[10px] font-medium">GRP</span>
+											<UsersRound size={12} class="text-gray-400" />
 											{groupMap.get(gid) ?? `Group ${gid}`}
 										</li>
 									{/each}
@@ -469,7 +499,7 @@
 									{/each}
 									{#each perms.change.groups as gid}
 										<li class="flex items-center gap-2 text-xs text-gray-700">
-											<span class="text-gray-400 text-[10px] font-medium">GRP</span>
+											<UsersRound size={12} class="text-gray-400" />
 											{groupMap.get(gid) ?? `Group ${gid}`}
 										</li>
 									{/each}
@@ -526,4 +556,16 @@
 
 {#if shareOpen}
 	<ShareModal docId={doc.id} onclose={() => shareOpen = false} />
+{/if}
+
+{#if confirmDelete}
+	<ConfirmModal
+		title="Dokument löschen"
+		message={`„${doc.title}" wird unwiderruflich gelöscht. Möchtest du fortfahren?`}
+		confirmLabel={deleting ? 'Wird gelöscht…' : 'Löschen'}
+		cancelLabel="Abbrechen"
+		dangerous={true}
+		onconfirm={deleteDoc}
+		oncancel={() => confirmDelete = false}
+	/>
 {/if}
